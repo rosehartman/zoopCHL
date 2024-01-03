@@ -19,12 +19,12 @@ library(wql)
 library(deltamapr)
 library(sf)
 
-load("ZoopsSum.RData")
+load("data/ZoopsSum.RData")
 
 #Note: i tried a lag of chlorophyll a earlier and it didn't work very well
 #start with Pseudodiaptomus
 
-Regions<-read_csv("Rosies_regions.csv")
+Regions<-read_csv("data/Rosies_regions.csv")
 
 Delta<-deltamapr::R_EDSM_Subregions_Mahardja_FLOAT%>%
   filter(SubRegion%in%unique(Regions$SubRegion))%>%  #Filter to regions of interest
@@ -294,7 +294,7 @@ performance(tBest)
 plot(allEffects(tBest))
 
 ################################################
-load("ZoopsSumm.RData")
+load("data/ZoopsSumm.RData")
 Limno = Filters("Limnoithona", data = ZoopsSumm)%>%
   filter(!is.na(Secchi))
 
@@ -411,7 +411,7 @@ performance(sBest)
 
 #################################################################
 #Hyperacanthomysis logirostris
-load("ZoopsSumMM2.RData")
+load("data/ZoopsSumMM2.RData")
 Hyp2 = Filters("Hyperacanthomysis longirostris", data = ZoopsSumMM2) %>%
   filter(!is.na(Secchisc))
 
@@ -442,7 +442,7 @@ performance(hBest2)
 #########################################################################
 
 save(ad, pd2, ed, acd, bd, dh, ds, kd, ld, aBest, pBest2, eBest, hBest2,  acBest, tBest, bBest, sBest, kbest, lBest, file = "SpeciesModels_2Jan2024.RData")
-load("SpeciesModels_2Jan2024.RData")
+load("outputs/SpeciesModels_2Jan2024.RData")
 
 #################################################################################
 #OK, now I need a way of displaying all these predictors and parameters and stuff in a 
