@@ -18,6 +18,7 @@ library(MuMIn)
 library(wql)
 library(deltamapr)
 library(sf)
+library(wql)
 
 load("data/ZoopsSum.RData")
 
@@ -128,7 +129,7 @@ testZeroInflation(pBest2)
 r2(pBest2)
 performance(pBest2)
 icc(pBest2)
-
+plot(allEffects(pBest2))
 
 ######################################################
 
@@ -157,13 +158,13 @@ eBest = update(eBest, REML = T)
 summary(eBest)
 plot(simulateResiduals(eBest))
 
-
+plot(allEffects(eBest))
 #Yeah, I think I like this one best.
 #check the diagnostic plots
 
 performance(eBest)
 plot(allEffects(eBest))
-
+#pesudos can eat everything, so no effect of chlorophyll, eurys much more narrow diet, 
 
 ########################################################################
 
