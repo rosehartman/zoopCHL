@@ -2,14 +2,7 @@
 library(tidyverse)
 library(zooper)
 library(lubridate)
-library(Hmsc)
-library(pscl)
-library(lme4)
-library(lmerTest)
-library(visreg)
-library(MuMIn)
-library(wql)
-library(MASS)
+
 #######################################################################################
 #what if we group the zoops by region and chlorophyll by region?
 #Then run the model on the monthly means
@@ -25,7 +18,7 @@ require(ggplot2) # Plotting
 require(geofacet) # plotting
 
 
-Regions<-read_csv("Rosies_regions.csv")
+Regions<-read_csv("data/Rosies_regions.csv")
 
 ## Load Delta Shapefile from Brian
 Delta<-deltamapr::R_EDSM_Subregions_Mahardja_FLOAT%>%
@@ -36,7 +29,7 @@ Regs = unique(Regions[,c(1,5)])
 Delta = merge(Delta, Regs)
 
 Data<-wq(End_year=2022,
-         Sources = c("EMP", "USGS_SFBS", "USGS_CAWSC", "NCRO"))
+         Sources = c("EMP", "USGS_SFBS", "USGS_CAWSC", "NCRO", "DOP"))
 
 WQzoops<-function(variable, narm = "FALSE"){
   vardata<-Data%>% # Select all long-term surveys (excluding EDSM and the USBR Sacramento ship channel study)
@@ -44,12 +37,12 @@ WQzoops<-function(variable, narm = "FALSE"){
     mutate(Datetime = with_tz(Datetime, tz="America/Phoenix"), #Convert to a timezone without daylight savings time
            Date = with_tz(Date, tz="America/Phoenix"), # Calculate difference from noon for each data point for later filtering
            Station=paste(Source, Station),
-           Time=as_hms(Datetime), # Create variable for time-of-day, not date. 
-           Noon_diff=abs(hms(hours=12)-Time))%>% # Calculate difference from noon for each data point for later filtering
+           Time=as_hms(Datetime) # Create variable for time-of-day, not date. 
+           )%>% # Calculate difference from noon for each data point for later filtering
     lazy_dt()%>% # Use dtplyr to speed up operations
     group_by(Station, Source, Date)%>%
-    filter(Noon_diff==min(Noon_diff))%>% # Select only 1 data point per station and date, choose data closest to noon
-    filter(Time==min(Time))%>% # When points are equidistant from noon, select earlier point
+#    filter(Noon_diff==min(Noon_diff))%>% # Select only 1 data point per station and date, choose data closest to noon
+#    filter(Time==min(Time))%>% # When points are equidistant from noon, select earlier point
     ungroup()%>%
     as_tibble()%>% # End dtplyr operation
     st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object

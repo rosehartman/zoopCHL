@@ -46,9 +46,13 @@ Filters = function(taxname, data = ZoopsSum){
     summarize(CPUE = mean(CPUE))%>%
     arrange(desc(CPUE)) %>%
     ungroup() %>%
-    slice(1:5)
+    slice(1)
   
-  months = monthsdat$Month
+  months = c(monthsdat$Month, monthsdat$Month+1, monthsdat$Month+2,monthsdat$Month-1,monthsdat$Month-2)
+  months = case_when(months < 1 ~ months+12,
+                     months > 12 ~ months-12,
+                     TRUE ~ months)
+  
   
   #find the salinities with the most catch
   test = dplyr::filter(data,  CPUE !=0)
@@ -263,7 +267,44 @@ plot(simresb5)
 performance(bBest)
 plot(allEffects(bBest))
 
+###################################################################
+#Daphnia
 
+Daph = Filters("Daphnia_UnID", data = ZoopsSum)%>%
+  filter(!is.na(Secchi))
+
+hist(Daph$CPUE)
+hist(log(Daph$CPUE +1))
+#hm.
+
+
+d5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + logChlsc + (1|Year), 
+             zi = ~ log(SalSurf), data = Daph,
+             family= "nbinom2", na.action = "na.fail")
+
+summary(d5)
+dd = dredge(d5, trace = 2,  rank = "BIC",
+            extra = list("Rs" = function(x) {
+              s <- performance(x)
+              c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
+            }))
+
+#chlorophyll is in the second best model, and within AIC of 3
+dBest = get.models(dd, 2)[[1]]
+dBest = update(dBest, REML =T)
+summary(dBest)
+
+dBest2 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + logChlsc + (1|Year), 
+                  data = Daph,
+                 family= "nbinom2", na.action = "na.fail")
+summary(dBest2)
+
+simresd5 = simulateResiduals(dBest2)
+plot(simresd5)
+plot(simulateResiduals(dBest))
+performance(dBest)
+plot(allEffects(dBest))
+#Well, the qq plot looks better with the zero inflation intercept, so i guess we'll leave it in there.
 
 ###################################################################
 #Tortanus
@@ -350,7 +391,7 @@ asBest = update(asBest, REML = T)
 #might not have enough catch of these guys to model it.
 
 summary(asBest)
-
+#yup, just not much there.
 simrest5 = simulateResiduals(as5)
 plot(simrest5)
 performance(asBest)
@@ -429,8 +470,11 @@ dh = dredge(h52, trace = 2, rank = "BIC",  extra = list("Rs" = function(x) {
   c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
 }))
 
-hBest2 = get.models(dh, 1)[[1]]
+hBest2 = get.models(dh, 4)[[1]]
 hBest2 = update(hBest2, REML =T)
+
+#Huh, best model is intercept-only, but next two best are within delta-aic of 3
+#it's also interesting that the version without DOP had chlorophyll, but this doesn't. 
 
 summary(hBest2)
 simresd = simulateResiduals(hBest2)
@@ -442,7 +486,7 @@ performance(hBest2)
 
 #########################################################################
 
-save(ad, pd2, ed, acd, bd, dh, ds, kd, ld, aBest, pBest2, eBest, hBest2,  acBest, tBest, bBest, sBest, kbest, lBest, file = "SpeciesModels_20Jan2024.RData")
+save(ad, pd2, ed, acd, bd,dd,  dh, ds, kd, ld, aBest,dBest, pBest2, eBest, hBest2,  acBest, tBest, bBest, sBest, kbest, lBest, file = "SpeciesModels_20Jan2024.RData")
 #load("outputs/SpeciesModels_20Jan2024.RData")
 
 #################################################################################
@@ -474,6 +518,7 @@ species = "Pseudodiaptomus"
 agrigate = bind_rows(getcoefs(pBest2, "Pseudodiaptomus"),
                      getcoefs(eBest, "Eurytemora"),
                      getcoefs(tBest, "Tortanus"),
+                     getcoefs(dBest, "Daphnia"),
                      getcoefs(bBest, "Bosmina"),
                      getcoefs(kbest, "Kerottela"),
                      getcoefs(lBest, "Limnoithona"),
@@ -503,7 +548,9 @@ test3 = cbind(test2, arg) %>%
 ggplot(filter(test3, Param != "(Intercept)"), aes(x = Species, y = Param, fill = Estimate)) + geom_tile() +
   facet_wrap(~Paramtype) +
   scale_fill_gradient2()
-foo = data.frame(Species = unique(test2$Species), Paramtype = "Zero Inflation", 
+
+foo = data.frame(Species = unique(test2$Species), 
+                 Paramtype = "Zero Inflation", 
                  ParamX = "Chlorophyll", Estimate2 = "Not Included")
 test3 = bind_rows(test3, foo)
 
@@ -532,13 +579,13 @@ ggplot(filter(test3, Param != "Month", Param != "(Intercept)"),
   scale_fill_gradient2()
 
 
-ggplot(filter(test3, Paramtype == "Count", Param != "Month", Param != "I(Month^2)", Param != "(Intercept)"), 
+ggplot(filter(test3, !is.na(Paramtype)), 
        aes(x = ParamX, y = Species, fill = Estimate2)) + geom_tile() +
-  # facet_wrap(~Paramtype) +
+   facet_grid(~Paramtype, scales = "free_x", space = "free") +
   scale_fill_manual(values = c("lightblue", "red", "grey", "white"), name = "Model \nEstimate") +
-  ylab(NULL) +
-  theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))+
-  geom_text(aes(label = round(Estimate3, dig = 2)))
+  ylab(NULL) + xlab(NULL)+
+  theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))+
+  geom_text(aes(label = round(Estimate, dig = 2)))
 
 
 #Think about how best to display this. May not be fair to put everyone on the same scale IDK
