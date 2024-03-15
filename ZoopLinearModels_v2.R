@@ -19,8 +19,12 @@ library(wql)
 library(deltamapr)
 library(sf)
 library(wql)
+library(corrplot)
 
 load("data/ZoopsSum.RData")
+load("data/ZoopsSumm.RData")
+load("data/lilzoopsmean.RData")
+source("HelperFunctions.R")
 
 #Note: i tried a lag of chlorophyll a earlier and it didn't work very well
 #start with Pseudodiaptomus
@@ -36,47 +40,57 @@ Delta = merge(Delta, Regs)
 
 #I need to re-run this sorting out the RMEL things and using BIC instead of AIC.
 
-#Maybe filter by time of year and salinity range things are most abundant
-Filters = function(taxname, data = ZoopsSum){
-  data = filter(data, Taxname2 == taxname) #filter to taxon of interest
-  
-  #summarize by month and select the highest 5 months
-  monthsdat = data %>%
-    group_by(Month, Taxname2) %>%
-    summarize(CPUE = mean(CPUE))%>%
-    arrange(desc(CPUE)) %>%
-    ungroup() %>%
-    slice(1)
-  
-  months = c(monthsdat$Month, monthsdat$Month+1, monthsdat$Month+2,monthsdat$Month-1,monthsdat$Month-2)
-  months = case_when(months < 1 ~ months+12,
-                     months > 12 ~ months-12,
-                     TRUE ~ months)
-  
-  
-  #find the salinities with the most catch
-  test = dplyr::filter(data,  CPUE !=0)
-   limsSurf = quantile(test$SalSurf, probs = c(0.05, 0.95), na.rm =T)
-   
-   #filter data to months and salinities with highest catch, take mean by region and month, and summarize
-  datafiltered = dplyr::filter(data, Month %in% months, 
-                 between(SalSurf, limsSurf[1], limsSurf[2])) %>%
-    group_by(Month, Region, Season, Year) %>%
-    summarize(CPUE = mean(CPUE)) %>%
-    left_join(WQ_dataNARM, by = c("Month", "Year", "Region")) %>%
-    mutate(SalSurf = ec2pss(Conductivity/1000, t=25),
-           logChl = log(Chlorophyll),
-           logCPUE = log(CPUE +1),
-           rCPUE = round(CPUE),
-           Secchisc = scale(Secchi),
-           logChlsc = scale(logChl),
-           SalSurfsc = scale(SalSurf)) 
-}
-
 #start with p. forbesi adults. just the appropraite salinity range, most abundant months
 Pseudox = Filters("Pseudodiaptomus forbesi") %>%
-  filter(!is.na(Secchi), !is.na(logChl), !is.na(SalSurf))
+  filter(!is.na(SalSurf), !is.na(Secchi))
+Eury = Filters("Eurytemora affinis", data = ZoopsSum)%>%
+  filter(!is.na(Secchi))
+Acan = Filters("Acanthocyclops_UnID", data = ZoopsSum)%>%
+  filter(!is.na(Secchi))
+Bos = Filters("Bosmina longirostris", data = ZoopsSum)%>%
+  filter(!is.na(Secchi))
+Sync = Filters("Synchaeta", data = ZoopsSumm) %>%
+  filter(!is.na(Secchisc))
+Limno = Filters("Limnoithona", data = ZoopsSumm)%>%
+  filter(!is.na(Secchi))
+Acart = Filters( "Acartiella_UnID" , data = ZoopsSum)%>%
+  filter(!is.na(Secchi), Year >2005)
+Daph = Filters("Daphnia_UnID", data = ZoopsSum)%>%
+  filter(!is.na(Secchi))
+Tort = Filters("Tortanus_UnID", data = ZoopsSum)%>%
+  filter(!is.na(Secchi), !is.na(Chlorophyll), !is.na(SalSurf))
+Kerat = Filters("Keratella", data = ZoopsSumm) %>%
+  filter(!is.na(Secchisc))
+load("data/ZoopsSumMM2.RData")
+Hyp2 = Filters("Hyperacanthomysis longirostris", data = ZoopsSumMM2) %>%
+  filter(!is.na(Secchisc))
 
+#soemone suggested all cladocera
+clads = filter(ZoopsSum, Taxname2 %in% c("Bosmina longirostris", "Cladocera_UnID", "Daphnia_UnID")) %>%
+  group_by(SampleID, Month, Year, Date, Source, Station, Longitude, Latitude, SalSurf, Secchi, SubRegion, Region, Season) %>%
+  summarise(CPUE = sum(CPUE)) %>%
+  mutate(Taxname2 = "Cladocera")
+
+Clads = Filters("Cladocera", data = clads)%>%
+  filter(!is.na(Secchi))
+
+#####################################################33
+#quick plot of which months were included for wchich taxa
+
+allzoops = bind_rows(Acan, Acart, Bos, Daph, Eury, Hyp2, Kerat, Limno,
+                     Pseudox, Sync, Tort)
+
+allzoopmonth = group_by(allzoops, Month, Taxname2) %>%
+  summarize(N= n(), CPUE = sum(CPUE, na.rm =T), logCPUE = sum(logCPUE, na.rm=T))
+
+
+ggplot(allzoopmonth, aes(x = Month, y = Taxname2, fill = logCPUE)) + geom_tile()
+
+
+ggplot(allzoops, aes(x = SalSurf, y = CPUE)) + geom_point()+
+  geom_smooth()+ 
+  facet_wrap(~Taxname2, scales = "free")
+#################################################################
 
 #quick exploritory plots
 hist(Pseudox$CPUE)
@@ -114,9 +128,11 @@ pd = dredge(p5, rank = "BIC", trace = 2,extra = list("Rs" = function(x) {
 pBest = get.models(pd, 1)[[1]]
 summary(pBest)
 
-p2 = glmmTMB(rCPUE ~log(SalSurf)+ Secchisc + logChlsc+ (1|Month)  + (1|Year),  
+
+Pseudox2 = filter(Pseudox, !is.na(lilzoops))
+p2 = glmmTMB(rCPUE ~log(SalSurf)+ Secchisc + logChlsc+ lilzoops + (1|Month)  + (1|Year),  
              ziformula = ~log(SalSurf),
-             data= Pseudox, family = "nbinom2", na.action = "na.fail")
+             data= Pseudox2, family = "nbinom2", na.action = "na.fail")
 summary(p2)
 
 pd2 = dredge(p2, trace = 2, rank = "BIC", extra = list("Rs" = function(x) {
@@ -139,18 +155,26 @@ plot(allEffects(pBest2))
 
 
 #Eurytemora
-Eury = Filters("Eurytemora affinis", data = ZoopsSum)%>%
-  filter(!is.na(Secchi))
+
 
 hist(Eury$CPUE)
 hist(log(Eury$CPUE +1))
 #hm. That one is more zero-inflated. May be trouble.
 
+Eury2 = filter(Eury, !is.na(lilzoops))
+e5 = glmmTMB(rCPUE ~log(SalSurf)+ logChlsc + lilzoops+ Secchisc + (1|Month) + (1|Year), 
+             zi = ~ log(SalSurf) , data = Eury2, 
+             family= "nbinom2", na.action = "na.fail")
 
-e5 = glmmTMB(rCPUE ~log(SalSurf)+ logChlsc + Secchisc + (1|Month) + (1|Year), 
+
+e5a = glmmTMB(rCPUE ~ logChlsc*Secchisc + (1|Month) + (1|Year), 
              zi = ~ log(SalSurf) , data = Eury, 
              family= "nbinom2", na.action = "na.fail")
 
+ggplot(Eury, aes(x = log(Secchi), y = logChl)) + geom_point()+ geom_smooth(method = "lm")
+
+summary(e5a)
+plot(allEffects(e5a))
 
 summary(e5)
 ed = dredge(e5,  trace = 2, rank = "BIC", extra = list("Rs" = function(x) {
@@ -173,19 +197,20 @@ plot(allEffects(eBest))
 ########################################################################
 
 #Acanthocyclops
-Acan = Filters("Acanthocyclops_UnID", data = ZoopsSum)%>%
-  filter(!is.na(Secchi))
+
 
 hist(Acan$CPUE)
 hist(log(Acan$CPUE +1))
 #bleh. Looks promlematic
 
-
-ac5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + logChlsc + (1|Year), 
+Acan1 = filter(Acan, !is.na(lilzoops))
+ac5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc +  logChlsc +lilzoops+ (1|Year)+(1|Month), 
               zi = ~log(SalSurf), 
-              data = Acan, 
+              data = Acan1, 
               family= "nbinom2", na.action = "na.fail")
 summary(ac5)
+
+#Hm. if we add the littlezoops component we have to drop the north delta. 
 acd = dredge(ac5,  trace = 2, rank = "BIC",  extra = list("Rs" = function(x) {
   s <- performance(x)
   c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
@@ -206,8 +231,6 @@ plot(simresac5)
 #Acartiella
 #Acartiella copepodids weren't seperated until 2006, so I'm going to subset
 #to just that time period.
-Acart = Filters( "Acartiella_UnID" , data = ZoopsSum)%>%
-  filter(!is.na(Secchi), Year >2005)
 
 hist(Acart$CPUE)
 hist(log(Acart$CPUE +1))
@@ -219,9 +242,9 @@ ggplot(Acart, aes(x = log(SalSurf), y = logCPUE)) + geom_point() + facet_wrap(~R
 #log salinity works way better... should I try that for everythign?
 #Hmm. Maybe we are having problems because we almost never catch them in the North Delta
 #Acart = droplevels(filter(Acart, Region != "North"))
-
-a5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + logChlsc+ + (1|Year), 
-             zi = ~ log(SalSurf), data = Acart, 
+Acart2 = filter(Acart, !is.na(lilzoops))
+a5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + lilzoops+ logChlsc+ + (1|Year), 
+             zi = ~ log(SalSurf), data = Acart2, 
              family= "nbinom2", na.action = "na.fail")
 summary(a5)
 ad = dredge(a5,trace = 2, rank = "BIC", extra = list("Rs" = function(x) {
@@ -240,16 +263,15 @@ performance(aBest)
 
 ###################################################################
 #Bosmina
-Bos = Filters("Bosmina longirostris", data = ZoopsSum)%>%
-  filter(!is.na(Secchi))
+
 
 hist(Bos$CPUE)
 hist(log(Bos$CPUE +1))
 #hm.
 
-
-b5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + logChlsc + (1|Year), 
-             zi = ~ log(SalSurf), data = Bos,
+Bostest = filter(Bos, !is.na(lilzoops))
+b5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + logChlsc+ lilzoops + (1|Year), 
+             zi = ~ log(SalSurf), data = Bostest,
              family= "nbinom2", na.action = "na.fail")
 
 summary(b5)
@@ -270,16 +292,13 @@ plot(allEffects(bBest))
 ###################################################################
 #Daphnia
 
-Daph = Filters("Daphnia_UnID", data = ZoopsSum)%>%
-  filter(!is.na(Secchi))
-
 hist(Daph$CPUE)
 hist(log(Daph$CPUE +1))
 #hm.
 
-
-d5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + logChlsc + (1|Year), 
-             zi = ~ log(SalSurf), data = Daph,
+Daph2 = filter(Daph, !is.na(lilzoops))
+d5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + lilzoops+ (1|Month) + logChlsc + (1|Year), 
+             zi = ~ log(SalSurf), data = Daph2,
              family= "nbinom2", na.action = "na.fail")
 
 summary(d5)
@@ -289,8 +308,7 @@ dd = dredge(d5, trace = 2,  rank = "BIC",
               c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
             }))
 
-#chlorophyll is in the second best model, and within AIC of 3
-dBest = get.models(dd, 2)[[1]]
+dBest = get.models(dd, 1)[[1]]
 dBest = update(dBest, REML =T)
 summary(dBest)
 
@@ -308,15 +326,15 @@ plot(allEffects(dBest))
 
 ###################################################################
 #Tortanus
-Tort = Filters("Tortanus_UnID", data = ZoopsSum)%>%
-  filter(!is.na(Secchi), !is.nan(SalSurfsc))
+
+  
 
 hist(Tort$CPUE)
 hist(log(Tort$CPUE +1))
 #hm.
 
 
-t5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + logChlsc + (1|Year), 
+t5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + lilzoops + (1|Month) + logChlsc + (1|Year), 
              zi = ~ log(SalSurf), data = Tort,
              family= "nbinom2", na.action = "na.fail")
 
@@ -336,9 +354,7 @@ performance(tBest)
 plot(allEffects(tBest))
 
 ################################################
-load("data/ZoopsSumm.RData")
-Limno = Filters("Limnoithona", data = ZoopsSumm)%>%
-  filter(!is.na(Secchi))
+
 
 
 hist(Limno$CPUE)
@@ -346,8 +362,8 @@ hist(log(Limno$CPUE +1))
 #hm.
 
 
-l5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + logChlsc +(1|Year), 
-             zi = ~ log(SalSurf), data = Tort,
+l5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + lilzoops+ logChlsc +(1|Year), 
+             zi = ~ log(SalSurf), data = Limno,
              family= "nbinom2", na.action = "na.fail")
 
 summary(l5)
@@ -367,41 +383,39 @@ plot(allEffects(lBest))
 
 
 ################################################
-Asplanchna = Filters("Asplanchna", data = ZoopsSumm)%>%
-  filter(!is.na(Secchi))
-
-
-hist(Asplanchna$CPUE)
-hist(log(Asplanchna$CPUE +1))
-#This one might be rought
-
-
-as5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + logChlsc  + (1|Year), 
-             zi = ~ log(SalSurf), data = Asplanchna,
-             family= "nbinom2", na.action = "na.fail")
-
-summary(as5)
-asd = dredge(as5, trace = 2, rank = "BIC", 
-            extra = list("Rs" = function(x) {
-              s <- performance(x)
-              c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
-            }))
-asBest = get.models(asd, 1)[[1]]
-asBest = update(asBest, REML = T)
-#might not have enough catch of these guys to model it.
-
-summary(asBest)
-#yup, just not much there.
-simrest5 = simulateResiduals(as5)
-plot(simrest5)
-performance(asBest)
-plot(allEffects(asBest))
+# Asplanchna = Filters("Asplanchna", data = ZoopsSumm)%>%
+#   filter(!is.na(Secchi))
+# 
+# 
+# hist(Asplanchna$CPUE)
+# hist(log(Asplanchna$CPUE +1))
+# #This one might be rought
+# 
+# 
+# as5 = glmmTMB(rCPUE ~log(SalSurf) + Secchisc + (1|Month) + logChlsc  + (1|Year), 
+#              zi = ~ log(SalSurf), data = Asplanchna,
+#              family= "nbinom2", na.action = "na.fail")
+# 
+# summary(as5)
+# asd = dredge(as5, trace = 2, rank = "BIC", 
+#             extra = list("Rs" = function(x) {
+#               s <- performance(x)
+#               c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
+#             }))
+# asBest = get.models(asd, 1)[[1]]
+# asBest = update(asBest, REML = T)
+# #might not have enough catch of these guys to model it.
+# 
+# summary(asBest)
+# #yup, just not much there.
+# simrest5 = simulateResiduals(as5)
+# plot(simrest5)
+# performance(asBest)
+# plot(allEffects(asBest))
 
 #####################################################################
 #Some random rotifer
 
-Kerat = Filters("Keratella", data = ZoopsSumm) %>%
-  filter(!is.na(Secchisc))
 hist(Kerat$CPUE)
 hist(log(Kerat$CPUE +1))
 #perfectly bell-shaped except for the zeros
@@ -425,9 +439,6 @@ plot(simresk5)
 
 
 #another rotifer
-
-Sync = Filters("Synchaeta", data = ZoopsSumm) %>%
-  filter(!is.na(Secchisc))
 hist(Sync$CPUE)
 hist(log(Sync$CPUE +1))
 #perfectly bell-shaped except for the zeros
@@ -453,15 +464,15 @@ performance(sBest)
 
 #################################################################
 #Hyperacanthomysis logirostris
-load("data/ZoopsSumMM2.RData")
-Hyp2 = Filters("Hyperacanthomysis longirostris", data = ZoopsSumMM2) %>%
-  filter(!is.na(Secchisc))
+
 
 hist(Hyp2$CPUE)
 hist(log(Hyp2$CPUE+1))
 # a little flat and zero-inflated, bu tnot bad
-h52 = glmmTMB(rCPUE ~log(SalSurf) +Secchisc + (1|Month) + logChlsc +  (1|Year), 
-              zi = ~ log(SalSurf), data = Hyp2, 
+Hyp3 = filter(Hyp2, !is.na(lilzoops))
+
+h52 = glmmTMB(rCPUE ~log(SalSurf) +Secchisc + (1|Month) + logChlsc + lilzoops+  (1|Year), 
+              zi = ~ log(SalSurf), data = Hyp3, 
               family= "nbinom2", na.action = "na.fail")
 
 summary(h52)
@@ -470,10 +481,9 @@ dh = dredge(h52, trace = 2, rank = "BIC",  extra = list("Rs" = function(x) {
   c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
 }))
 
-hBest2 = get.models(dh, 4)[[1]]
+hBest2 = get.models(dh, 1)[[1]]
 hBest2 = update(hBest2, REML =T)
 
-#Huh, best model is intercept-only, but next two best are within delta-aic of 3
 #it's also interesting that the version without DOP had chlorophyll, but this doesn't. 
 
 summary(hBest2)
@@ -482,11 +492,38 @@ plot(simresd)
 check_collinearity(hBest2)
 performance(hBest2)
 
+#################################################################
+#
+
+
+hist(Clads$CPUE)
+hist(log(Clads$CPUE+1))
+# a little flat and zero-inflated, bu tnot bad
+
+Clads2 = filter(Clads, !is.na(lilzoops))
+Clads52 = glmmTMB(rCPUE ~log(SalSurf) +Secchisc + lilzoops+ (1|Month) + logChlsc +  (1|Year), 
+              zi = ~ log(SalSurf), data = Clads2, 
+              family= "nbinom2", na.action = "na.fail")
+
+summary(Clads52)
+Cladsh = dredge(Clads52, trace = 2, rank = "BIC",  extra = list("Rs" = function(x) {
+  s <- performance(x)
+  c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
+}))
+
+CladsBest2 = get.models(Cladsh, 1)[[1]]
+CladsBest2 = update(CladsBest2, REML =T)
+
+summary(CladsBest2)
+simresd = simulateResiduals(CladsBest2)
+plot(simresd)
+check_collinearity(CladsBest2)
+performance(CladsBest2)
 
 
 #########################################################################
 
-save(ad, pd2, ed, acd, bd,dd,  dh, ds, kd, ld, aBest,dBest, pBest2, eBest, hBest2,  acBest, tBest, bBest, sBest, kbest, lBest, file = "SpeciesModels_20Jan2024.RData")
+save(ad, pd2, ed, acd, bd,dd,  dh, ds, kd, ld, aBest,dBest, pBest2, eBest, hBest2,  acBest, tBest, bBest, sBest, kbest, lBest, file = "outputs/SpeciesModels_21Jan2024.RData")
 #load("outputs/SpeciesModels_20Jan2024.RData")
 
 #################################################################################
@@ -504,6 +541,7 @@ getcoefs =  function(x, species) {
   }
   return(dat)
 }
+
 
 rsqs =  function(y, species) {
   R2 = r2(y)[[2]]
@@ -525,6 +563,7 @@ agrigate = bind_rows(getcoefs(pBest2, "Pseudodiaptomus"),
                      getcoefs(hBest2, "H. Logirostris"),
                      getcoefs(aBest, "Acartiella"),
                      getcoefs(sBest, "Syncheata"),
+                     getcoefs(CladsBest2, "All Cladocera"),
                      getcoefs(acBest, "Acanthocyclops"))%>%
   mutate(pp = paste(paramtype, params))
 
@@ -549,15 +588,11 @@ ggplot(filter(test3, Param != "(Intercept)"), aes(x = Species, y = Param, fill =
   facet_wrap(~Paramtype) +
   scale_fill_gradient2()
 
-foo = data.frame(Species = unique(test2$Species), 
-                 Paramtype = "Zero Inflation", 
-                 ParamX = "Chlorophyll", Estimate2 = "Not Included")
-test3 = bind_rows(test3, foo)
 
 test3 = mutate(test3, ParamX = factor(Param, levels = c("(Intercept)", "log(SalSurf)", "Secchisc",
-                                                        "Month", "I(Month^2)", "logChlsc"),
+                                                        "logChlsc", "lilzoops"),
                                       labels = c("Intercept", "Salinity", "Secchi Depth", 
-                                                 "Month", "Month^2", "Chlorophyll")),
+                                                  "Chlorophyll", "Microzooplankton")),
                Paramtype = factor(Paramtype, levels = c("count", "zi"), labels =
                                     c("Count", "Zero Inflation")))
 
@@ -579,13 +614,22 @@ ggplot(filter(test3, Param != "Month", Param != "(Intercept)"),
   scale_fill_gradient2()
 
 
+#Get size classes and groups to sort by
+library(readxl)
+taxa = read_excel("Data/taxa.xlsx")
+
+test3 = left_join(test3, taxa, by = c("Species"= "Taxon")) %>%
+  mutate(Estimate2 = case_when(ParamX == "Microzooplankton" & Species %in% c("Kerottela","Syncheata") ~ "Not Tested",
+                               TRUE ~ Estimate2))
+
 ggplot(filter(test3, !is.na(Paramtype)), 
        aes(x = ParamX, y = Species, fill = Estimate2)) + geom_tile() +
    facet_grid(~Paramtype, scales = "free_x", space = "free") +
-  scale_fill_manual(values = c("lightblue", "red", "grey", "white"), name = "Model \nEstimate") +
+  scale_fill_manual(values = c("lightblue", "red", "grey", "white", "grey20"), name = "Model \nEstimate") +
   ylab(NULL) + xlab(NULL)+
   theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))+
-  geom_text(aes(label = round(Estimate, dig = 2)))
+  geom_text(aes(label = round(Estimate, dig = 2)))+
+  facet_grid(FeedingGuild~Paramtype, scales = "free", space = "free")
 
 
 #Think about how best to display this. May not be fair to put everyone on the same scale IDK
@@ -609,6 +653,7 @@ ggplot(filter(test3, ParamX != "Intercept"), aes(x = Species, y = Estimate, fill
   geom_bar(stat = "identity") + facet_grid(ParamX~Paramtype, scales = "free_y")+
   scale_alpha_manual(values = c(0.3, 1)) 
 
+plot(allEffects(eBest))
 
 #######################################################
 
@@ -644,7 +689,7 @@ effectsall = bind_rows(effectsfun(pBest2, "Pseudodiaptomus"),
 
 #something is weird with the x-axis on salsurf
 ggplot(effectsall, aes(x = level, y = fit))+ 
-  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.4)+
+  #geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.4)+
   geom_smooth()+
   facet_grid(taxa~param, scales = "free")
 
@@ -655,3 +700,13 @@ ggplot(effectsall, aes(x = level, y = fit))+
   ylab("Partial Residuals")+
   xlab("Value of Predictor variable")
 
+##########################################################################################
+
+#look at correlations between predictor variables
+WQandLilzoops = left_join(WQ_dataNARM, lilzoopsmean, by = c("Month", "Year", "Region")) %>%
+  filter(Year >1999)
+mat = dplyr::select(WQandLilzoops, Temperature, Secchi, Chlorophyll, Conductivity, lilzoopbiomass) %>%
+  dplyr::filter(!is.na(Temperature), !is.na(Secchi), !is.na(Chlorophyll), !is.na(Conductivity), !is.na(lilzoopbiomass))
+wqcorr = cor(as.matrix(mat))
+
+corrplot.mixed(wqcorr, lower.col = c("blue", "red"))

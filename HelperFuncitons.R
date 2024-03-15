@@ -2,6 +2,160 @@
 library(tidyverse)
 library(lubridate)
 
+
+
+#Maybe filter by time of year and salinity range things are most abundant
+Filters_LS = function(taxname, lifestage, data = ZoopsSum){
+  data = dplyr::filter(data, Taxname2 == taxname, Lifestage == lifestage) #filter to taxon of interest
+  
+  #summarize by month and select the highest 5 months
+  monthsdat = data %>%
+    group_by(Month, Taxname2, Lifestage) %>%
+    summarize(CPUE = mean(CPUE))%>%
+    arrange(desc(CPUE)) %>%
+    ungroup() %>%
+    slice(1)
+  
+  months = c(monthsdat$Month, monthsdat$Month+1, monthsdat$Month+2,monthsdat$Month-1,monthsdat$Month-2)
+  months = case_when(months < 1 ~ months+12,
+                     months > 12 ~ months-12,
+                     TRUE ~ months)
+  
+  
+  #find the salinities with the most catch
+  test = dplyr::filter(data,  CPUE !=0)
+  limsSurf = quantile(test$SalSurf, probs = c(0.05, 0.95), na.rm =T)
+  
+  #filter data to months and salinities with highest catch, take mean by region and month, and summarize
+  datafiltered = dplyr::filter(data, Month %in% months, 
+                               between(SalSurf, limsSurf[1], limsSurf[2])) %>%
+    group_by(Month, Region, Season, Year, Taxname2, Lifestage) %>%
+    summarize(CPUE = mean(CPUE, na.rm =T)) %>%
+    left_join(WQ_dataNARM, by = c("Month", "Year", "Region")) %>%
+    left_join(lilzoopsmean) %>%
+    mutate_all( ~ case_when(!is.nan(.x) ~ .x)) %>%
+    ungroup() %>%
+    mutate(SalSurf = ec2pss(Conductivity/1000, t=25),
+           logChl = log(Chlorophyll),
+           logCPUE = log(CPUE +1),
+           rCPUE = round(CPUE))%>%
+    filter(!is.na(Secchi), !is.na(logChl), !is.na(SalSurf))
+  datafiltered$Secchisc = scale(datafiltered$Secchi)
+  datafiltered$logChlsc = scale(datafiltered$logChl)
+  datafiltered$SalSurfsc = scale(datafiltered$SalSurf)
+  datafiltered$lilzoops = scale(log(datafiltered$BPUE+1))
+  return(datafiltered)
+}
+
+
+#############################################################
+
+
+#Maybe filter by time of year and salinity range things are most abundant
+Filters = function(taxname, data = ZoopsSum){
+  data = dplyr::filter(data, Taxname2 == taxname) #filter to taxon of interest
+  
+  #summarize by month and select the highest 5 months
+  monthsdat = data %>%
+    group_by(Month, Taxname2) %>%
+    summarize(CPUE = mean(CPUE))%>%
+    arrange(desc(CPUE)) %>%
+    ungroup() %>%
+    slice(1)
+  
+  months = c(monthsdat$Month, monthsdat$Month+1, monthsdat$Month+2,monthsdat$Month-1,monthsdat$Month-2)
+  months = case_when(months < 1 ~ months+12,
+                     months > 12 ~ months-12,
+                     TRUE ~ months)
+  
+  
+  #find the salinities with the most catch
+  test = dplyr::filter(data,  CPUE !=0)
+  limsSurf = quantile(test$SalSurf, probs = c(0.05, 0.95), na.rm =T)
+  
+  #filter data to months and salinities with highest catch, take mean by region and month, and summarize
+  datafiltered = dplyr::filter(data, Month %in% months, 
+                               between(SalSurf, limsSurf[1], limsSurf[2])) %>%
+    group_by(Month, Region, Season, Year, Taxname2) %>%
+    summarize(CPUE = mean(CPUE, na.rm =T)) %>%
+    left_join(WQ_dataNARM, by = c("Month", "Year", "Region")) %>%
+    left_join(lilzoopsmean) %>%
+    mutate_all( ~ case_when(!is.nan(.x) ~ .x)) %>%
+    ungroup() %>%
+    mutate(SalSurf = ec2pss(Conductivity/1000, t=25),
+           logChl = log(Chlorophyll),
+           logCPUE = log(CPUE +1),
+           rCPUE = round(CPUE)) %>%
+    filter(!is.na(Secchi), !is.na(logChl), !is.na(SalSurf))
+  datafiltered$Secchisc = scale(datafiltered$Secchi)
+  datafiltered$logChlsc = scale(datafiltered$logChl)
+  datafiltered$SalSurfsc = scale(datafiltered$SalSurf)
+  datafiltered$lilzoops = scale(log(datafiltered$lilzoopbiomass+1))
+  return(datafiltered)
+}
+
+########################################################################
+#create a global model, go through all options, pull out the best, update with REML
+
+
+Zoopdredger = function(dataset) {
+  
+  mod = glmmTMB(rCPUE ~log(SalSurf)+ logChlsc +  (1|Month)+ (1|Year),
+                ziformula = ~log(SalSurf),
+                data= dataset, family = nbinom2, na.action = "na.fail")
+
+#go through all the modesl
+mods_all = dredge(mod, rank = "BIC", trace = 2,extra = list("Rs" = function(x) {
+  s <- performance(x)
+  c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
+}))
+print(mods_all)
+bestmod = get.models(mods_all, 1)[[1]]
+bestmod = update(bestmod, REML = TRUE)
+print(summary(bestmod))
+return(bestmod)
+}
+
+Zoopdredger2 = function(dataset) {
+  dataset = filter(dataset, !is.na(lilzoops))
+  mod = glmmTMB(rCPUE ~log(SalSurf)+ logChlsc +lilzoops+  (1|Month)+ (1|Year),
+                ziformula = ~log(SalSurf),
+                data= dataset, family = nbinom2, na.action = "na.fail")
+  
+  #go through all the modesl
+  mods_all = dredge(mod, rank = "BIC", trace = 2,extra = list("Rs" = function(x) {
+    s <- performance(x)
+    c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
+  }))
+  print(mods_all)
+  bestmod = get.models(mods_all, 1)[[1]]
+  bestmod = update(bestmod, REML = TRUE)
+  print(summary(bestmod))
+  return(bestmod)
+}
+
+
+Zoopdredger3 = function(dataset) {
+  dataset = mutate(dataset, logout = log(OUT))
+  mod = glmmTMB(rCPUE ~log(SalSurf)+ logChlsc +logout+  (1|Month)+ (1|Year),
+                ziformula = ~log(SalSurf),
+                data= dataset, family = nbinom2, na.action = "na.fail")
+  
+  #go through all the modesl
+  mods_all = dredge(mod, rank = "BIC", trace = 2,extra = list("Rs" = function(x) {
+    s <- performance(x)
+    c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
+  }))
+  print(mods_all)
+  bestmod = get.models(mods_all, 1)[[1]]
+  bestmod = update(bestmod, REML = TRUE)
+  print(summary(bestmod))
+  return(bestmod)
+}
+
+
+#################################################################3
+
 zoop_predict<-function(model, data, confidence=95){
   prob_lower<-(100-confidence)/200
   probs<-c(prob_lower, 1-prob_lower)

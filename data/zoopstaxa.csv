@@ -1,0 +1,31 @@
+Lifestage,Taxname,Taxlifestage,CarbonWeight_ug
+Adult,Acanthocyclops_UnID,Acanthocyclops_UnID Adult,3.36
+Adult,Acartiella sinensis,Acartiella sinensis Adult,2.67
+Adult,Asplanchna_UnID,Asplanchna_UnID Adult,0.3
+Adult,Bosmina longirostris,Bosmina longirostris Adult,0.6
+Adult,Calanoida_UnID,Calanoida_UnID Adult,3
+Juvenile,Calanoida_UnID,Calanoida_UnID Juvenile,1.5
+Adult,Cladocera_UnID,Cladocera_UnID Adult,1
+Larva,Copepoda_UnID,Copepoda_UnID Larva,0.1
+Adult,Cyclopoida_UnID,Cyclopoida_UnID Adult,3.36
+Juvenile,Cyclopoida_UnID,Cyclopoida_UnID Juvenile,1.8
+Adult,Daphnia_UnID,Daphnia_UnID Adult,4
+Adult,Daphniidae_UnID,Daphniidae_UnID Adult,4
+Larva,Decapoda_UnID,Decapoda_UnID Larva,3
+Adult,Diaptomidae_UnID,Diaptomidae_UnID Adult,4
+Adult,Eurytemora affinis,Eurytemora affinis Adult,3
+Juvenile,Eurytemora affinis,Eurytemora affinis Juvenile,1.4
+Undifferentiated,Harpacticoida_UnID,Harpacticoida_UnID Undifferentiated,1
+Adult,Keratella_UnID,Keratella_UnID Adult,0.04
+Adult,Limnoithona tetraspina,Limnoithona tetraspina Adult,0.13
+Adult,Limnoithona_UnID,Limnoithona_UnID Adult,0.13
+Adult,Ostracoda_UnID,Ostracoda_UnID Adult,0.28
+Adult,Polyarthra_UnID,Polyarthra_UnID Adult,0.28
+Adult,Pseudodiaptomus forbesi,Pseudodiaptomus forbesi Adult,2.66
+Adult,Pseudodiaptomus_UnID,Pseudodiaptomus_UnID Adult,2.66
+Juvenile,Pseudodiaptomus_UnID,Pseudodiaptomus_UnID Juvenile,1.15
+Adult,Rotifera_UnID,Rotifera_UnID Adult,0.12
+Adult,Sinocalanus doerrii,Sinocalanus doerrii Adult,3.41
+Juvenile,Sinocalanus doerrii,Sinocalanus doerrii Juvenile,1.81
+Adult,Synchaeta_UnID,Synchaeta_UnID Adult,0.12
+Adult,Trichocerca_UnID,Trichocerca_UnID Adult,0.12
