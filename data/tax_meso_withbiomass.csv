@@ -1,0 +1,41 @@
+Taxname2,Lifestage,Guild,Biomass
+Acanthocyclops_UnID,Adult,Predator,3.36
+Acartia_UnID,Adult,Predator,2.98
+Acartiella_UnID,Adult,Predator,2.67
+Asplanchna,Adult,Herbivore,0.3
+Bosmina longirostris,Adult,Herbivore,0.6
+Calanoida_UnID,Adult,Omnivore,2.66
+Cladocera_UnID,Adult,Herbivore,4
+Daphnia_UnID,Adult,Herbivore,4
+Daphniidae_UnID,Adult,Herbivore,4
+Diaptomidae_UnID,Adult,Herbivore,2.66
+Eurytemora affinis,Adult,Herbivore,3.55
+Keratella,Adult,Herbivore,0.04
+Limnoithona,Adult,Omnivore,0.13
+Oithona davisae,Adult,Herbivore,0.2
+Polyarthra,Adult,Herbivore,0.28
+Pseudodiaptomus forbesi,Adult,Omnivore,2.66
+Pseudodiaptomus marinus,Adult,Omnivore,4.9
+Pseudodiaptomus_UnID,Adult,Omnivore,2.66
+Sinocalanus,Adult,Herbivore,3.41
+Synchaeta,Adult,Omnivore,0.12
+Tortanus_UnID,Adult,Predator,15.89
+Trichocerca,Adult,Herbivore,0.12
+Acartia_UnID,Juvenile,Predator,1.3
+Acartiella_UnID,Juvenile,Predator,1.16
+Calanoida_UnID,Juvenile,Omnivore,1.15
+Cyclopoida,Juvenile,Omnivore,0.2
+Diaptomidae_UnID,Juvenile,Herbivore,1.15
+Eurytemora affinis,Juvenile,Herbivore,1.44
+Limnoithona,Juvenile,Omnivore,0.04
+Oithona,Juvenile,Herbivore,0.07
+Pseudodiaptomus_UnID,Juvenile,Omnivore,1.15
+Sinocalanus,Juvenile,Herbivore,1.81
+Tortanus_UnID,Juvenile,Predator,7.95
+Cirripedia_UnID,Larva,Herbivore,3.8
+Decapoda_UnID,Larva,Omnivore,3
+Harpacticoida,Undifferentiated,Omnivore,1
+Harpacticoida_UnID,Undifferentiated,Omnivore,1
+Cyclopoida,Larva,Herbivore,0.02
+Calanoida_UnID,Larva,Herbivore,0.1
+Copepoda_UnID,Larva,Herbivore,0.1

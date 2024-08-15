@@ -2,6 +2,27 @@
 library(tidyverse)
 library(lubridate)
 
+#labels for facetted plots
+taxlabelsH =  c(expression(paste(italic("B. longirostris"))),
+                expression(paste(italic("Daphnia"), " sp.")),
+                expression(paste(italic("E. carolleeae"), " adult")),
+                expression(paste(italic("E. carolleeae"), " juv.")),
+                
+                expression(paste(italic("Keratella"), " sp.")))
+
+taxlabelsO =  c(expression(paste(italic("H. longirostris"))),
+                expression(paste(italic("Limnoithona"), " sp. adult")),
+                expression(paste(italic("Limnoithona"), " sp. juv.")),
+                expression(paste(italic("P. forbesi"), " adult")),
+                expression(paste(italic("Pseudodiaptomus"), " sp. juv.")),
+                expression(paste(italic("Synchaeta"), " sp.")))
+
+taxlabelsP =  c(expression(paste(italic("Acanthocyclops"), " sp.")),
+                expression(paste(italic("A. sinensis"), " adult")),
+                expression(paste(italic("A. sinensis"), " juv.")),
+                expression(paste(italic("Tortanus"), " sp. adult")),
+                expression(paste(italic("Tortanus"), " sp. juv")))
+
 
 
 #Maybe filter by time of year and salinity range things are most abundant
@@ -42,8 +63,8 @@ Filters_LS = function(taxname, lifestage, data = ZoopsSum){
     filter(!is.na(Secchi), !is.na(logChl), !is.na(SalSurf))
   datafiltered$Secchisc = scale(datafiltered$Secchi)
   datafiltered$logChlsc = scale(datafiltered$logChl)
-  datafiltered$SalSurfsc = scale(datafiltered$SalSurf)
-  datafiltered$lilzoops = scale(log(datafiltered$BPUE+1))
+  datafiltered$SalSurfsc = scale(log(datafiltered$SalSurf))
+  datafiltered$lilzoops = scale(log(datafiltered$lilzoopbiomass+1))
   return(datafiltered)
 }
 
@@ -89,7 +110,7 @@ Filters = function(taxname, data = ZoopsSum){
     filter(!is.na(Secchi), !is.na(logChl), !is.na(SalSurf))
   datafiltered$Secchisc = scale(datafiltered$Secchi)
   datafiltered$logChlsc = scale(datafiltered$logChl)
-  datafiltered$SalSurfsc = scale(datafiltered$SalSurf)
+  datafiltered$SalSurfsc = scale(log(datafiltered$SalSurf))
   datafiltered$lilzoops = scale(log(datafiltered$lilzoopbiomass+1))
   return(datafiltered)
 }
@@ -97,18 +118,15 @@ Filters = function(taxname, data = ZoopsSum){
 ########################################################################
 #create a global model, go through all options, pull out the best, update with REML
 
-
+#zoopdredger does chlorophyll
 Zoopdredger = function(dataset) {
   
-  mod = glmmTMB(rCPUE ~log(SalSurf)+ logChlsc +  (1|Month)+ (1|Year),
-                ziformula = ~log(SalSurf),
+  mod = glmmTMB(rCPUE ~SalSurfsc+ logChlsc +  Secchisc+ (1|Month)+ (1|Year),
+                ziformula = ~SalSurfsc,
                 data= dataset, family = nbinom2, na.action = "na.fail")
 
 #go through all the modesl
-mods_all = dredge(mod, rank = "BIC", trace = 2,extra = list("Rs" = function(x) {
-  s <- performance(x)
-  c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
-}))
+mods_all = dredge(mod, rank = "BIC", trace = 2)
 print(mods_all)
 bestmod = get.models(mods_all, 1)[[1]]
 bestmod = update(bestmod, REML = TRUE)
@@ -116,17 +134,32 @@ print(summary(bestmod))
 return(bestmod)
 }
 
+#zoopdredger 2 does little zoops too
 Zoopdredger2 = function(dataset) {
   dataset = filter(dataset, !is.na(lilzoops))
-  mod = glmmTMB(rCPUE ~log(SalSurf)+ logChlsc +lilzoops+  (1|Month)+ (1|Year),
-                ziformula = ~log(SalSurf),
+  mod = glmmTMB(rCPUE ~SalSurfsc+ logChlsc +lilzoops+  Secchisc+ (1|Month)+ (1|Year),
+                ziformula = ~SalSurfsc,
                 data= dataset, family = nbinom2, na.action = "na.fail")
   
   #go through all the modesl
-  mods_all = dredge(mod, rank = "BIC", trace = 2,extra = list("Rs" = function(x) {
-    s <- performance(x)
-    c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
-  }))
+  mods_all = dredge(mod, rank = "BIC", trace = 2)
+  print(mods_all)
+  bestmod = get.models(mods_all, 1)[[1]]
+  bestmod = update(bestmod, REML = TRUE)
+  print(summary(bestmod))
+  return(bestmod)
+}
+
+#zoopdredger 3 adds log of outflow
+Zoopdredger3 = function(dataset) {
+  dataset = filter(dataset, !is.na(lilzoops))
+  dataset = mutate(dataset, logout = log(OUT))
+  mod = glmmTMB(rCPUE ~SalSurf+ logChlsc +logout+ lilzoops + Secchisc+ (1|Month)+ (1|Year),
+                ziformula = ~SalSurfsc,
+                data= dataset, family = nbinom2, na.action = "na.fail")
+  
+  #go through all the modesl
+  mods_all = dredge(mod, rank = "BIC")
   print(mods_all)
   bestmod = get.models(mods_all, 1)[[1]]
   bestmod = update(bestmod, REML = TRUE)
@@ -135,27 +168,30 @@ Zoopdredger2 = function(dataset) {
 }
 
 
-Zoopdredger3 = function(dataset) {
-  dataset = mutate(dataset, logout = log(OUT))
-  mod = glmmTMB(rCPUE ~log(SalSurf)+ logChlsc +logout+  (1|Month)+ (1|Year),
-                ziformula = ~log(SalSurf),
-                data= dataset, family = nbinom2, na.action = "na.fail")
+
+
+getcoefs =  function(x, species) {
+  dat = as.data.frame(summary(x)$coefficients[[1]])
+  dat =   mutate(dat, params = row.names(dat), Species = species, paramtype = "count")
+  if(!is_null(x[[3]])) { 
+    dat2 = as.data.frame(summary(x)$coefficients[[2]])
+    dat2 = mutate(dat2, params = row.names(dat2), Species = species, paramtype = "zi")
+    dat = bind_rows(dat, dat2)
+  }
+  return(dat)
+}
+
+
+rsqs =  function(y, species) {
+  R2 = r2(y)[[2]]
+  dat = data.frame(Species = species, R2a = R2)
   
-  #go through all the modesl
-  mods_all = dredge(mod, rank = "BIC", trace = 2,extra = list("Rs" = function(x) {
-    s <- performance(x)
-    c(Rsqc = s$R2_conditional, Rsqm = s$R2_marginal)
-  }))
-  print(mods_all)
-  bestmod = get.models(mods_all, 1)[[1]]
-  bestmod = update(bestmod, REML = TRUE)
-  print(summary(bestmod))
-  return(bestmod)
+  return(dat)
 }
 
 
 #################################################################3
-
+#these are the ones from Sam that i'm no longer using. 
 zoop_predict<-function(model, data, confidence=95){
   prob_lower<-(100-confidence)/200
   probs<-c(prob_lower, 1-prob_lower)

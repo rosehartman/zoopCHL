@@ -121,18 +121,18 @@ WQ_dataNARM = left_join(WQ_dataNARM, DFmonth)
 
 #get all the EMP and 20mm data from zooper
 #If I'm using GAMs, I can do winter data after all.
-Zoops = Zoopsynther(Data_type = "Community",
+Zoopsx = Zoopsynther(Data_type = "Community",
                      Sources = c("EMP", "20mm", "DOP", "FMWT", "STN"),
                      Size_class = "Meso",
                    #  Months = c(3:10),
-                     Date_range = c("2000-01-01", "2022-12-30"),
+                     Date_range = c("1970-01-01", "2022-12-30"),
                      Redownload_data = F)
 
-test = group_by(Zoops, Year, Taxlifestage, Taxname) %>%
+testx = group_by(Zoopsx, Year, Taxlifestage, Taxname) %>%
   summarise(N = n(), Mean = mean(CPUE, na.rm = T))
 
 
-Zoops2 = dplyr::filter(Zoops, Undersampled == FALSE, !is.na(Latitude), Taxname != "Oithona similis", Lifestage != "larva") %>%
+Zoops2x = dplyr::filter(Zoopsx, Undersampled == FALSE, !is.na(Latitude), Taxname != "Oithona similis", Lifestage != "larva") %>%
                       mutate(Taxname2 = case_when(
   Taxname == "Acanthocyclops vernalis" ~ "Acanthocyclops",
   Taxname == "Sinocalanus_UnID" ~ "Sinocalanus",
@@ -144,7 +144,7 @@ Zoops2 = dplyr::filter(Zoops, Undersampled == FALSE, !is.na(Latitude), Taxname !
   group_by(SampleID, Taxname2, Month, Year, Date, Source, Station, Longitude, Latitude, SalSurf, Secchi) %>%
   summarize(CPUE = sum(CPUE))
 
-Zoops3 = dplyr::filter(Zoops, Undersampled == FALSE, !is.na(Latitude), Taxname != "Oithona similis", Lifestage != "larva") %>%
+Zoops3x = dplyr::filter(Zoopsx, Undersampled == FALSE, !is.na(Latitude), Taxname != "Oithona similis", Lifestage != "larva") %>%
   mutate(Taxname2 = case_when(
     Taxname == "Acanthocyclops vernalis" ~ "Acanthocyclops",
     Taxname == "Sinocalanus_UnID" ~ "Sinocalanus",
@@ -176,7 +176,7 @@ Zoops3 = dplyr::filter(Zoops, Undersampled == FALSE, !is.na(Latitude), Taxname !
 #   complete(nesting(Month, Season), Region, Year, fill=list(N=0)) # Fill in NAs for variable (and 0 for N) for any missing month, subregion, year combinations to make sure all months are represented in each season
 
 
-ZoopsSum = Zoops2 %>%
+ZoopsSumx= Zoops2x %>%
   group_by(Station, Source, Date, SampleID, SalSurf, Secchi)%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
   st_transform(crs=st_crs(Delta))%>% # Change to crs of Delta
@@ -190,7 +190,7 @@ ZoopsSum = Zoops2 %>%
                           Month%in%c(12, 1, 2) ~ "Winter",
                           TRUE ~ NA_character_))
 #Let's filter months and salinities first, then join to water quality later.
-ZoopsSumLifestage = Zoops3 %>%
+ZoopsSumLifestagex = Zoops3x %>%
   group_by(Station, Source, Date, SampleID, SalSurf, Secchi)%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
   st_transform(crs=st_crs(Delta))%>% # Change to crs of Delta
@@ -204,22 +204,22 @@ ZoopsSumLifestage = Zoops3 %>%
                           Month%in%c(12, 1, 2) ~ "Winter",
                           TRUE ~ NA_character_))
 
-save(ZoopsSum, ZoopsSumLifestage, WQ_dataNARM, file = "ZoopsSum.RData")
-
+save(ZoopsSum, ZoopsSumLifestage, WQ_dataNARM, file = "data/ZoopsSum.RData")
+save(ZoopsSumLifestagex, file = "data/ZoopsSumx.RData")
 ###############################
 #Ok, Now the same witht the microzoops
 
 
 #get all the EMP data from zooper
-Zoopsm = Zoopsynther(Data_type = "Community",
+Zoopsmx = Zoopsynther(Data_type = "Community",
                     Sources = c("EMP"),
                     Size_class = "Micro",
                    # Months = c(3:10),
-                    Date_range = c("2000-01-01", "2022-12-30"),
+                    Date_range = c("1970-01-01", "2022-12-30"),
                     Redownload_data = F)
 
 
-Zoops2m = dplyr::filter(Zoopsm, !Undersampled, Order != "Calanoida", !is.na(Latitude)) %>%
+Zoops2mx = dplyr::filter(Zoopsmx, !Undersampled, !is.na(Latitude)) %>%
   mutate(Taxname2 = case_when(
     Taxname == "Limnoithona sinensis" ~ "Limnoithona_UnID",
     Taxname == "Limnoithona tetraspina" ~ "Limnoithona_UnID",
@@ -231,7 +231,7 @@ Zoops2m = dplyr::filter(Zoopsm, !Undersampled, Order != "Calanoida", !is.na(Lati
   summarize(CPUE = sum(CPUE)) %>%
   mutate(Taxname2 = str_replace(Taxname2, "_UnID", ""))
 
-Zoops3m = dplyr::filter(Zoopsm, !Undersampled, Order != "Calanoida", !is.na(Latitude)) %>%
+Zoops3mx = dplyr::filter(Zoopsmx, !Undersampled, !is.na(Latitude)) %>%
   mutate(Taxname2 = case_when(
     Taxname == "Limnoithona sinensis" ~ "Limnoithona_UnID",
     Taxname == "Limnoithona tetraspina" ~ "Limnoithona_UnID",
@@ -258,7 +258,7 @@ ZoopsSumm = Zoops2m %>%
                           TRUE ~ NA_character_))
 
 
-ZoopsSumm_lifestage = Zoops3m %>%
+ZoopsSumm_lifestagex = Zoops3mx %>%
   group_by(Station, Source, Date)%>%
   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=FALSE)%>% # Convert to sf object
   st_transform(crs=st_crs(Delta))%>% # Change to crs of Delta
@@ -274,8 +274,8 @@ ZoopsSumm_lifestage = Zoops3m %>%
 
 
 
-save(ZoopsSumm, ZoopsSumm_lifestage, file = "ZoopsSumm.RData")
-
+save(ZoopsSumm, ZoopsSumm_lifestage, file = "data/ZoopsSumm.RData")
+save(ZoopsSumm_lifestagex, file = "data/ZoopsSummx.RData")
 ###########################################################################
 #create a monthly average "little zoops for prey" number, somehow.
 biomass = read_csv("data/zoopstaxa.csv")
@@ -284,7 +284,8 @@ biomass = read_csv("data/zoopstaxa.csv")
 lilzoops = Zoopsm %>%
   left_join(biomass) %>%
   mutate(BPUE = CPUE * CarbonWeight_ug, Month = month(Date)) %>%
-  filter(Undersampled != TRUE, !Taxlifestage %in% c("Limnoithona_UnID Adult", "Limnoithona sinensis Adult",
+  filter(Undersampled != TRUE, !Taxlifestage %in% c("Limnoithona_UnID Adult", "Oithona_UnID Juvenile",
+                                                    "Limnoithona sinensis Adult","Limnoithona_UnID Juvenile",
                                                     "Limnoithona tetraspina Adult",  "Oithona davisae Adult"))
 
 #total biomass per sample
@@ -405,51 +406,9 @@ save(ZoopsSumMM2, file = "data/ZoopsSumMM2.RData")
 
 
 ####################################################################
+#does anyone just do acartiella to genus?
 
-#Definite big pile of NOPE on STN and FMWT data.
-#Also nope on lag of CHLA
+acartiella = Zoopsynther(Data_type = "Taxa", Taxa = "Acartiella", Years = c(2015:2022))
 
-#Scale predictor variables, do some other stuff, log-transormations
-ZoopMaster2 = mutate(ZoopMaster, rCPUE = round(CPUE), logCPUE = log(CPUE+1),
-                     SalSurfsc = scale(log(SalSurf)), logChlsc = scale(logChl),
-                     lagChlsc = scale(logChlag),
-                     Region = as.factor(Region),
-                     Secchisc = scale(Secchi),
-                     Chlorophyllsc = scale(Chlorophyll), Yearsc = scale(Year),
-                     Yearf = as.factor(Year)) %>%
-  filter(!is.na(Secchi), !is.na(logChl), !(is.na(SalSurf)))
-#Scale predictor variables, do some other stuff, log-transormations
-ZoopMaster2m = mutate(ZoopMasterm, rCPUE = round(CPUE), logCPUE = log(CPUE+1),
-                      SalSurfsc = scale(log(SalSurf)), logChlsc = scale(logChl),
-                      Region = as.factor(Region),
-                      Secchisc = scale(Secchi),
-                      Chlorophyllsc = scale(Chlorophyll), Yearsc = scale(Year))
-
-
-ZoopMaster2MM2 = mutate(ZoopMasterMM2, rCPUE = round(CPUE), logCPUE = log(CPUE+1),
-                        SalSurfsc = scale(log(SalSurf)), logChlsc = scale(logChl),
-                        Region = as.factor(Region),
-                        Secchisc = scale(Secchi),
-                        Chlorophyllsc = scale(Chlorophyll), Yearsc = scale(Year))
-
-
-test = lmer(CPUE~ Secchi + (1|Year), data = Eury)
-library(broom)
-tid
-tidy(test)
-foo = summary(test)$coefficients
-
-#now subset species of interest
-Pseudos = filter(ZoopMaster2, Taxname2 == "Pseudodiaptomus")
-Eury = filter(ZoopMaster2, Taxname2 == "Eurytemora affinis")
-Acan = filter(ZoopMaster2, Taxname2 == "Acanthocyclops")
-Acart = filter(ZoopMaster2, Taxname2 == "Acartiella")
-Bosmina = filter(ZoopMaster2, Taxname2 == "Bosmina longirostris")
-Daphnia = filter(ZoopMaster2, Taxname2 == "Daphnia")
-Hyp = filter(ZoopMaster2MM2, Taxname2 == "Hyperacanthomysis longirostris")
-Limno = filter(ZoopMaster2m, Taxname2 == "Limnoithona")
-Kero = filter(ZoopMaster2m, Taxname2 == "Keratella")
-Syn = filter(ZoopMaster2m, Taxname2 == "Synchaeta")
-
-save(ZoopMaster2, ZoopMaster2m, ZoopMaster2MM2, Pseudos, Eury,
-     Acan, Bosmina, Daphnia, Hyp, Acart, Kero, Syn, Limno,file = "OrganizedZoops.RData")
+ggplot(acartiella, aes(x = Date, y = CPUE, color = Taxlifestage))+ geom_point()+
+  facet_wrap(~Source)

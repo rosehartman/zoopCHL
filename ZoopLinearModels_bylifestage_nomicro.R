@@ -113,7 +113,7 @@ summary(pBestadx)
 
 
 #now the juvenikels
-p5juvx = glmmTMB(rCPUE ~log(SalSurf)+ logChlsc +  (1|Month)+ (1|Year),
+p5juvx = glmmTMB(rCPUE ~log(SalSurf)+ logChlsc + Secchisc+  (1|Month)+ (1|Year),
                ziformula = ~log(SalSurf),
                data= Pseudox_juv, family = nbinom2, na.action = "na.fail")
 summary(p5juvx)
